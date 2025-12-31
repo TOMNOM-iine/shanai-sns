@@ -45,8 +45,13 @@ export default function SupabaseProvider({ children }: SupabaseProviderProps) {
         const res = await fetch('/api/config')
         const config = await res.json()
 
+        console.log('Fetched config:', {
+          hasUrl: !!config.supabaseUrl,
+          hasKey: !!config.supabaseAnonKey,
+        })
+
         if (!config.supabaseUrl || !config.supabaseAnonKey) {
-          setError('Supabase設定が見つかりません')
+          setError(`Supabase設定が見つかりません (URL: ${!!config.supabaseUrl}, Key: ${!!config.supabaseAnonKey})`)
           return
         }
 
