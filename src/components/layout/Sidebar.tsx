@@ -372,11 +372,11 @@ export default function Sidebar({ user }: SidebarProps) {
           className="flex items-center gap-3 mb-3 hover:bg-gray-900 p-2 -m-2 rounded transition-colors cursor-pointer"
         >
           <div className="w-10 h-10 bg-white text-black flex items-center justify-center font-pixel text-lg pixel-avatar">
-            {user?.display_name?.[0] || '?'}
+            {user?.display_name?.[0] || user?.email?.[0] || '?'}
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-pixel truncate">
-              {user?.display_name || 'ゲスト'}
+              {user?.display_name || user?.email || 'ゲスト'}
             </p>
             <p className="text-xs text-gray-400 truncate">
               {user?.email}

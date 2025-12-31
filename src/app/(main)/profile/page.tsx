@@ -40,12 +40,17 @@ export default function ProfilePage() {
       // emailがない場合は認証ユーザーのメールを使用
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const profileData = data as any
+      const fallbackDisplayName =
+        profileData.display_name ||
+        user.user_metadata?.display_name ||
+        user.email?.split('@')[0] ||
+        ''
       const profileWithEmail = {
         ...profileData,
         email: profileData.email || user.email || ''
       }
       setProfile(profileWithEmail)
-      setDisplayName(profileData.display_name || '')
+      setDisplayName(fallbackDisplayName)
       setDepartment(profileData.department || '')
     } else if (error) {
       console.error('Profile fetch error:', error)
@@ -82,13 +87,15 @@ export default function ProfilePage() {
     setMessage(null)
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.from('profiles') as any)
+    const { data: updated, error } = await (supabase.from('profiles') as any)
       .update({
         display_name: displayName.trim() || null,
         department: department.trim() || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', profile.id)
+      .select()
+      .single()
 
     setIsSaving(false)
 
@@ -96,9 +103,18 @@ export default function ProfilePage() {
       setMessage({ type: 'error', text: '保存に失敗しました' })
       console.error('Profile update error:', error)
     } else {
+      if (updated) {
+        const nextProfile = {
+          ...(updated as Profile),
+          email: updated.email || authEmail || profile.email || '',
+        }
+        setProfile(nextProfile)
+        setDisplayName(nextProfile.display_name || '')
+        setDepartment(nextProfile.department || '')
+        window.dispatchEvent(new CustomEvent('profile-updated', { detail: nextProfile }))
+      }
       setMessage({ type: 'success', text: '保存しました' })
       setIsEditing(false)
-      fetchProfile()
       // サイドバーを更新するためにページをリロード
       router.refresh()
     }

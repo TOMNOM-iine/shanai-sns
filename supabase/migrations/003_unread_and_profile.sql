@@ -21,6 +21,16 @@ CREATE TABLE IF NOT EXISTS public.dm_reads (
 ALTER TABLE public.channel_reads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dm_reads ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies for re-runs
+DROP POLICY IF EXISTS "channel_reads_select" ON public.channel_reads;
+DROP POLICY IF EXISTS "channel_reads_insert" ON public.channel_reads;
+DROP POLICY IF EXISTS "channel_reads_update" ON public.channel_reads;
+DROP POLICY IF EXISTS "channel_reads_delete" ON public.channel_reads;
+DROP POLICY IF EXISTS "dm_reads_select" ON public.dm_reads;
+DROP POLICY IF EXISTS "dm_reads_insert" ON public.dm_reads;
+DROP POLICY IF EXISTS "dm_reads_update" ON public.dm_reads;
+DROP POLICY IF EXISTS "dm_reads_delete" ON public.dm_reads;
+
 -- RLS Policies for channel_reads
 CREATE POLICY "channel_reads_select" ON public.channel_reads
   FOR SELECT USING (auth.uid() = user_id);

@@ -129,6 +129,28 @@ ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.files ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_chats ENABLE ROW LEVEL SECURITY;
 
+-- 既存のポリシーを削除（再実行対策）
+DROP POLICY IF EXISTS "profiles_select" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_insert" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_update" ON public.profiles;
+DROP POLICY IF EXISTS "channels_select" ON public.channels;
+DROP POLICY IF EXISTS "channels_insert" ON public.channels;
+DROP POLICY IF EXISTS "channels_update" ON public.channels;
+DROP POLICY IF EXISTS "channels_delete" ON public.channels;
+DROP POLICY IF EXISTS "channel_members_all" ON public.channel_members;
+DROP POLICY IF EXISTS "messages_select" ON public.messages;
+DROP POLICY IF EXISTS "messages_insert" ON public.messages;
+DROP POLICY IF EXISTS "messages_update" ON public.messages;
+DROP POLICY IF EXISTS "messages_delete" ON public.messages;
+DROP POLICY IF EXISTS "reactions_all" ON public.reactions;
+DROP POLICY IF EXISTS "dm_select" ON public.direct_messages;
+DROP POLICY IF EXISTS "dm_insert" ON public.direct_messages;
+DROP POLICY IF EXISTS "dm_messages_all" ON public.dm_messages;
+DROP POLICY IF EXISTS "events_all" ON public.events;
+DROP POLICY IF EXISTS "tasks_all" ON public.tasks;
+DROP POLICY IF EXISTS "files_all" ON public.files;
+DROP POLICY IF EXISTS "ai_chats_all" ON public.ai_chats;
+
 -- RLS ポリシー
 -- profiles: 誰でも閲覧可能、本人のみ更新可能
 CREATE POLICY "profiles_select" ON public.profiles FOR SELECT USING (true);
@@ -178,9 +200,23 @@ CREATE POLICY "files_all" ON public.files FOR ALL USING (auth.role() = 'authenti
 CREATE POLICY "ai_chats_all" ON public.ai_chats FOR ALL USING (auth.uid() = user_id);
 
 -- リアルタイム更新を有効化
-ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.dm_messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.channels;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.dm_messages;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.channels;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- 自動プロフィール作成トリガー
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -197,10 +233,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 既存のトリガーがあれば削除
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-
--- 新規ユーザー作成時にプロフィールを自動作成
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+-- 既存のトリガーがあれば削除 / 作成（権限がなければスキップ）
+DO $$
+BEGIN
+  BEGIN
+    EXECUTE 'DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users';
+    EXECUTE 'CREATE TRIGGER on_auth_user_created
+      AFTER INSERT ON auth.users
+      FOR EACH ROW EXECUTE FUNCTION public.handle_new_user()';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'Skipping auth.users trigger setup due to insufficient privileges';
+  END;
+END $$;

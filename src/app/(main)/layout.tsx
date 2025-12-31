@@ -40,6 +40,11 @@ export default function MainLayout({
 
         console.log('Profile fetch result:', { profile: !!profile, profileError })
 
+        const fallbackDisplayName =
+          authUser.user_metadata?.display_name ||
+          authUser.email?.split('@')[0] ||
+          'ユーザー'
+
         if (profileError || !profile) {
           // プロフィールがなければ作成
           console.log('Creating profile...')
@@ -48,7 +53,7 @@ export default function MainLayout({
             .upsert({
               id: authUser.id,
               email: authUser.email || '',
-              display_name: authUser.user_metadata?.display_name || 'ユーザー',
+              display_name: fallbackDisplayName,
             }, { onConflict: 'id' })
             .select()
             .single()
@@ -56,10 +61,16 @@ export default function MainLayout({
           console.log('Profile create result:', { newProfile: !!newProfile, createError })
 
           if (newProfile) {
-            setUser(newProfile)
+            setUser({
+              ...(newProfile as Profile),
+              display_name: newProfile.display_name || fallbackDisplayName,
+            })
           }
         } else {
-          setUser(profile)
+          setUser({
+            ...(profile as Profile),
+            display_name: profile.display_name || fallbackDisplayName,
+          })
         }
       } catch (err) {
         console.error('Auth check error:', err)
@@ -86,6 +97,23 @@ export default function MainLayout({
 
     return () => {
       subscription.unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleProfileUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<Profile>).detail
+      if (!detail?.id) return
+      setUser((prev) => ({
+        ...(prev || ({} as Profile)),
+        ...detail,
+        email: detail.email || prev?.email || '',
+      }))
+    }
+
+    window.addEventListener('profile-updated', handleProfileUpdated as EventListener)
+    return () => {
+      window.removeEventListener('profile-updated', handleProfileUpdated as EventListener)
     }
   }, [])
 

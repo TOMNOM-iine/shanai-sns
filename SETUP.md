@@ -32,6 +32,7 @@
    - `supabase/migrations/002_public_schema.sql`
    - `supabase/migrations/003_unread_and_profile.sql`
    - `supabase/migrations/004_messaging_features.sql`
+   - `supabase/migrations/005_profile_schema_fix.sql`
 3. 「Run」を実行
 
 ### 1.4 Storage設定

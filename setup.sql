@@ -13,9 +13,43 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   email TEXT NOT NULL,
   display_name TEXT,
   avatar_url TEXT,
+  department TEXT,
+  status TEXT DEFAULT 'offline' CHECK (status IN ('online', 'away', 'offline')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- 既存テーブルの不足カラムを補完
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS display_name TEXT,
+  ADD COLUMN IF NOT EXISTS avatar_url TEXT,
+  ADD COLUMN IF NOT EXISTS department TEXT,
+  ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'offline',
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+ALTER TABLE public.profiles
+  ALTER COLUMN status SET DEFAULT 'offline',
+  ALTER COLUMN created_at SET DEFAULT NOW(),
+  ALTER COLUMN updated_at SET DEFAULT NOW();
+
+UPDATE public.profiles
+SET status = 'offline'
+WHERE status IS NULL
+   OR status NOT IN ('online', 'away', 'offline');
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'profiles_status_check'
+  ) THEN
+    ALTER TABLE public.profiles
+      ADD CONSTRAINT profiles_status_check
+      CHECK (status IN ('online', 'away', 'offline'));
+  END IF;
+END $$;
+
+NOTIFY pgrst, 'reload schema';
 
 -- チャンネルテーブル
 CREATE TABLE IF NOT EXISTS public.channels (
@@ -254,11 +288,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+DO $$
+BEGIN
+  BEGIN
+    EXECUTE 'DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users';
+    EXECUTE 'CREATE TRIGGER on_auth_user_created
+      AFTER INSERT ON auth.users
+      FOR EACH ROW EXECUTE FUNCTION public.handle_new_user()';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'Skipping auth.users trigger setup due to insufficient privileges';
+  END;
+END $$;
 
 -- =============================================
 -- 完了
