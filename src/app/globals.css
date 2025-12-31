@@ -1,0 +1,243 @@
+@import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Klee+One&family=Zen+Kurenaido&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground: #000000;
+  --background: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  font-family: 'Klee One', 'Zen Kurenaido', cursive;
+}
+
+/* アンダーテイル風カスタムスタイル */
+
+/* ドットフォント */
+.font-pixel {
+  font-family: 'DotGothic16', monospace;
+}
+
+/* 手書き風ボーダー */
+.sketch-border {
+  border: 2px solid #000;
+  border-radius: 0;
+  box-shadow: 3px 3px 0px #000;
+  position: relative;
+}
+
+.sketch-border::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border: 1px solid #000;
+  pointer-events: none;
+}
+
+/* ドット絵風ボタン */
+.pixel-btn {
+  font-family: 'DotGothic16', monospace;
+  background: #fff;
+  border: 3px solid #000;
+  padding: 8px 16px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.1s;
+}
+
+.pixel-btn:hover {
+  background: #000;
+  color: #fff;
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0px #808080;
+}
+
+.pixel-btn:active {
+  transform: translate(0, 0);
+  box-shadow: none;
+}
+
+/* ハートカーソル */
+.heart-cursor {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23ff0000' d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/%3E%3C/svg%3E") 12 12, pointer;
+}
+
+/* アンダーテイル風テキストボックス */
+.ut-textbox {
+  background: #000;
+  border: 3px solid #fff;
+  color: #fff;
+  padding: 20px;
+  font-family: 'DotGothic16', monospace;
+  position: relative;
+}
+
+.ut-textbox::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  border: 1px solid #fff;
+  pointer-events: none;
+}
+
+/* メッセージタイピングアニメーション */
+.typing-effect {
+  overflow: hidden;
+  white-space: nowrap;
+  animation: typing 0.5s steps(40, end);
+}
+
+/* スクロールバーカスタマイズ */
+::-webkit-scrollbar {
+  width: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: #fff;
+  border: 2px solid #000;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #000;
+  border: 2px solid #fff;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #333;
+}
+
+/* ノーション風チェックボックス */
+.notion-checkbox {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #000;
+  background: #fff;
+  cursor: pointer;
+  position: relative;
+}
+
+.notion-checkbox:checked {
+  background: #000;
+}
+
+.notion-checkbox:checked::after {
+  content: '✓';
+  color: #fff;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 14px;
+}
+
+/* 手書き風入力欄 */
+.hand-input {
+  font-family: 'Klee One', cursive;
+  border: none;
+  border-bottom: 2px dashed #000;
+  background: transparent;
+  padding: 8px 4px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.hand-input:focus {
+  border-bottom: 2px solid #000;
+}
+
+/* ローディングアニメーション */
+@keyframes loading-dots {
+  0%, 20% { content: '.'; }
+  40% { content: '..'; }
+  60% { content: '...'; }
+  80%, 100% { content: ''; }
+}
+
+.loading-text::after {
+  content: '';
+  animation: loading-dots 1.5s infinite;
+}
+
+/* アバタードット絵風 */
+.pixel-avatar {
+  image-rendering: pixelated;
+  border: 2px solid #000;
+}
+
+/* サイドバーアイテム */
+.sidebar-item {
+  padding: 8px 12px;
+  border-left: 3px solid transparent;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+
+.sidebar-item:hover {
+  background: #f0f0f0;
+  border-left-color: #000;
+}
+
+.sidebar-item.active {
+  background: #000;
+  color: #fff;
+  border-left-color: #ff0000;
+}
+
+/* チャットメッセージ */
+.chat-message {
+  max-width: 70%;
+  padding: 12px 16px;
+  margin: 8px 0;
+  position: relative;
+}
+
+.chat-message.sent {
+  margin-left: auto;
+  background: #000;
+  color: #fff;
+  border: 2px solid #000;
+}
+
+.chat-message.received {
+  margin-right: auto;
+  background: #fff;
+  border: 2px solid #000;
+}
+
+/* モーダル */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal-content {
+  background: #fff;
+  border: 4px solid #000;
+  box-shadow: 8px 8px 0px #000;
+  padding: 24px;
+  max-width: 500px;
+  width: 90%;
+}
