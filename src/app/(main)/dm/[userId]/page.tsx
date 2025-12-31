@@ -186,7 +186,9 @@ export default function DMPage() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'dm_reactions' },
         (payload) => {
-          const targetId = payload.new?.dm_message_id || payload.old?.dm_message_id
+          const newData = payload.new as { dm_message_id?: string } | null
+          const oldData = payload.old as { dm_message_id?: string } | null
+          const targetId = newData?.dm_message_id || oldData?.dm_message_id
           if (targetId && (messages.some((m) => m.id === targetId) || threadMessages.some((m) => m.id === targetId))) {
             const ids = [...messages.map((m) => m.id), ...threadMessages.map((m) => m.id)]
             fetchReactions(ids)

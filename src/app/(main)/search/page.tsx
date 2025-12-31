@@ -99,10 +99,10 @@ export default function SearchPage() {
           .limit(20),
       ])
 
-    setMessages((msgData || []) as MessageResult[])
-    setDms((dmData || []) as DmResult[])
-    setFiles((fileData || []) as FileResult[])
-    setTasks((taskData || []) as TaskResult[])
+    setMessages((msgData || []) as unknown as MessageResult[])
+    setDms((dmData || []) as unknown as DmResult[])
+    setFiles((fileData || []) as unknown as FileResult[])
+    setTasks((taskData || []) as unknown as TaskResult[])
     setLoading(false)
   }
 

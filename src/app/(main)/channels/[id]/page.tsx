@@ -207,7 +207,9 @@ export default function ChannelPage() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'reactions' },
         (payload) => {
-          const targetId = payload.new?.message_id || payload.old?.message_id
+          const newData = payload.new as { message_id?: string } | null
+          const oldData = payload.old as { message_id?: string } | null
+          const targetId = newData?.message_id || oldData?.message_id
           if (targetId && (messages.some((m) => m.id === targetId) || threadMessages.some((m) => m.id === targetId))) {
             const ids = [...messages.map((m) => m.id), ...threadMessages.map((m) => m.id)]
             fetchReactions(ids)

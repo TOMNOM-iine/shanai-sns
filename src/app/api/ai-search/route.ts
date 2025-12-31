@@ -3,6 +3,16 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import OpenAI from 'openai'
 
+interface SearchSource {
+  rank: number
+  sourceType: string
+  sourceId: string
+  title: string | null
+  content: string | null
+  metadata: Record<string, unknown> | null
+  similarity: number
+}
+
 const SUPABASE_URL =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
   process.env.SUPABASE_URL ||
@@ -54,14 +64,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  const sources = (matches || []).map((item: any, index: number) => ({
+  const sources: SearchSource[] = (matches || []).map((item: Record<string, unknown>, index: number) => ({
     rank: index + 1,
-    sourceType: item.source_type,
-    sourceId: item.source_id,
-    title: item.title,
-    content: item.content,
-    metadata: item.metadata,
-    similarity: item.similarity,
+    sourceType: String(item.source_type || ''),
+    sourceId: String(item.source_id || ''),
+    title: item.title as string | null,
+    content: item.content as string | null,
+    metadata: item.metadata as Record<string, unknown> | null,
+    similarity: Number(item.similarity) || 0,
   }))
 
   const prompt = `あなたは社内SNSの検索アシスタントです。

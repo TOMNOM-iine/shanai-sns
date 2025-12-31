@@ -211,6 +211,41 @@ export interface Database {
           created_at?: string
         }
       }
+      dm_messages: {
+        Row: {
+          id: string
+          dm_id: string
+          sender_id: string
+          content: string
+          parent_id: string | null
+          edited_at: string | null
+          is_deleted: boolean
+          deleted_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          dm_id: string
+          sender_id: string
+          content: string
+          parent_id?: string | null
+          edited_at?: string | null
+          is_deleted?: boolean
+          deleted_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          dm_id?: string
+          sender_id?: string
+          content?: string
+          parent_id?: string | null
+          edited_at?: string | null
+          is_deleted?: boolean
+          deleted_at?: string | null
+          created_at?: string
+        }
+      }
       events: {
         Row: {
           id: string
@@ -455,38 +490,3 @@ export type ChannelMessagePin = Database['public']['Tables']['channel_message_pi
 export type SavedChannelMessage = Database['public']['Tables']['saved_channel_messages']['Row']
 export type SavedDmMessage = Database['public']['Tables']['saved_dm_messages']['Row']
 export type SearchDocument = Database['public']['Tables']['search_documents']['Row']
-      dm_messages: {
-        Row: {
-          id: string
-          dm_id: string
-          sender_id: string
-          content: string
-          parent_id: string | null
-          edited_at: string | null
-          is_deleted: boolean
-          deleted_at: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          dm_id: string
-          sender_id: string
-          content: string
-          parent_id?: string | null
-          edited_at?: string | null
-          is_deleted?: boolean
-          deleted_at?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          dm_id?: string
-          sender_id?: string
-          content?: string
-          parent_id?: string | null
-          edited_at?: string | null
-          is_deleted?: boolean
-          deleted_at?: string | null
-          created_at?: string
-        }
-      }
