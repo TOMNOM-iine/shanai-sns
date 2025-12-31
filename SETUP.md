@@ -26,9 +26,12 @@
    - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
    - `anon public` → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-### 1.3 データベーステーブル作成
+### 1.3 データベーステーブル作成（publicスキーマ）
 1. SQL Editor を開く
-2. `supabase/migrations/001_initial_schema.sql` の内容を貼り付け
+2. 以下を順番に実行:
+   - `supabase/migrations/002_public_schema.sql`
+   - `supabase/migrations/003_unread_and_profile.sql`
+   - `supabase/migrations/004_messaging_features.sql`
 3. 「Run」を実行
 
 ### 1.4 Storage設定

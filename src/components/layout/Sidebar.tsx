@@ -263,6 +263,12 @@ export default function Sidebar({ user }: SidebarProps) {
             * ファイル
           </Link>
           <Link
+            href="/search"
+            className={`sidebar-item block ${pathname === '/search' ? 'active' : ''}`}
+          >
+            * 検索
+          </Link>
+          <Link
             href="/ai-chat"
             className={`sidebar-item block ${pathname === '/ai-chat' ? 'active' : ''}`}
           >
@@ -309,7 +315,12 @@ export default function Sidebar({ user }: SidebarProps) {
                 pathname === `/channels/${channel.id}` ? 'active' : ''
               }`}
             >
-              <span># {channel.name}</span>
+              <span>
+                # {channel.name}
+                {channel.is_archived && (
+                  <span className="ml-2 text-xs text-gray-400">(アーカイブ)</span>
+                )}
+              </span>
               {channelUnreadCounts[channel.id] && (
                 <span className="bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
                   {channelUnreadCounts[channel.id]}

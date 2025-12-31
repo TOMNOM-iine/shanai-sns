@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types/database'
 import dynamic from 'next/dynamic'
+import { extractTextFromFile } from '@/lib/files/extractText'
+import { upsertSearchDocument, deleteSearchDocument } from '@/lib/search/indexDocument'
 
 // PDFビューアを動的インポート
 const FilePreview = dynamic(() => import('@/components/files/FilePreview'), {
@@ -24,6 +26,7 @@ interface FileRecord {
   uploaded_by: string
   channel_id?: string
   created_at: string
+  updated_at?: string
   profiles?: Profile
 }
 
@@ -67,6 +70,7 @@ export default function FilesPage() {
     if (!file || !user) return
 
     setUploading(true)
+    const extractedText = await extractTextFromFile(file)
 
     // Supabase Storageにアップロード
     const fileExt = file.name.split('.').pop()
@@ -86,16 +90,28 @@ export default function FilesPage() {
 
     // DBに記録
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: dbError } = await (supabase.from('files') as any).insert({
+    const { data: fileRow, error: dbError } = await (supabase.from('files') as any).insert({
       name: file.name,
       path: filePath,
       size: file.size,
       mime_type: file.type,
       uploaded_by: user.id,
     })
+      .select()
+      .single()
 
     if (!dbError) {
       fetchFiles()
+      if (fileRow?.id) {
+        await upsertSearchDocument({
+          sourceType: 'file',
+          sourceId: fileRow.id,
+          title: file.name,
+          content: extractedText || file.name,
+          userId: user.id,
+          metadata: { fileName: file.name, mimeType: file.type },
+        })
+      }
     }
 
     setUploading(false)
@@ -112,6 +128,7 @@ export default function FilesPage() {
 
     // DBから削除
     await supabase.from('files').delete().eq('id', file.id)
+    await deleteSearchDocument('file', file.id)
     fetchFiles()
 
     if (selectedFile?.id === file.id) {
@@ -198,6 +215,9 @@ export default function FilesPage() {
     return mimeType.includes('pdf') ||
            mimeType.includes('word') ||
            mimeType.includes('document') ||
+           mimeType.includes('sheet') ||
+           mimeType.includes('excel') ||
+           mimeType.includes('presentation') ||
            mimeType.startsWith('image/') ||
            mimeType.includes('text')
   }
@@ -240,7 +260,7 @@ export default function FilesPage() {
             onChange={handleUpload}
             className="hidden"
             id="file-upload"
-            accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.gif,.xls,.xlsx,.ppt,.pptx"
+            accept=".pdf,.doc,.docx,.txt,.md,.csv,.png,.jpg,.jpeg,.gif,.xls,.xlsx,.ppt,.pptx"
           />
           <label
             htmlFor="file-upload"
@@ -257,7 +277,7 @@ export default function FilesPage() {
                   クリックして ファイルを アップロード
                 </span>
                 <span className="block text-xs text-gray-500 mt-1">
-                  PDF, Word, Excel, 画像ファイル対応
+                  PDF, Word, Excel, PowerPoint, 画像ファイル対応
                 </span>
               </>
             )}
@@ -343,11 +363,17 @@ export default function FilesPage() {
             </button>
           </div>
           <div className="flex-1 overflow-hidden">
-            <FilePreview
-              url={previewUrl}
-              fileName={selectedFile.name}
-              mimeType={selectedFile.mime_type}
-            />
+              <FilePreview
+                url={previewUrl}
+                fileName={selectedFile.name}
+                mimeType={selectedFile.mime_type}
+                filePath={selectedFile.path}
+                fileId={selectedFile.id}
+                onSaved={() => {
+                  fetchFiles()
+                  openPreview(selectedFile)
+                }}
+              />
           </div>
         </div>
       )}

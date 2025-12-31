@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Task, Profile } from '@/types/database'
+import { upsertSearchDocument, deleteSearchDocument } from '@/lib/search/indexDocument'
 
 interface TaskWithUser extends Task {
   profiles: Profile | null
@@ -73,7 +74,7 @@ export default function TasksPage() {
     if (editingTask) {
       // 更新
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from('tasks') as any)
+      const { error } = await (supabase.from('tasks') as any)
         .update({
           title: newTask.title,
           description: newTask.description,
@@ -82,10 +83,20 @@ export default function TasksPage() {
           due_date: newTask.due_date || null,
         })
         .eq('id', editingTask.id)
+      if (!error) {
+        await upsertSearchDocument({
+          sourceType: 'task',
+          sourceId: editingTask.id,
+          title: newTask.title,
+          content: newTask.description || newTask.title,
+          userId: user.id,
+          metadata: { status: newTask.status },
+        })
+      }
     } else {
       // 新規作成
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from('tasks') as any).insert({
+      const { data: inserted, error } = await (supabase.from('tasks') as any).insert({
         title: newTask.title,
         description: newTask.description,
         status: newTask.status,
@@ -93,6 +104,18 @@ export default function TasksPage() {
         due_date: newTask.due_date || null,
         created_by: user.id,
       })
+        .select()
+        .single()
+      if (!error && inserted?.id) {
+        await upsertSearchDocument({
+          sourceType: 'task',
+          sourceId: inserted.id,
+          title: newTask.title,
+          content: newTask.description || newTask.title,
+          userId: user.id,
+          metadata: { status: newTask.status },
+        })
+      }
     }
 
     closeModal()
@@ -101,7 +124,20 @@ export default function TasksPage() {
 
   const updateTaskStatus = async (taskId: string, status: TaskStatus) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase.from('tasks') as any).update({ status }).eq('id', taskId)
+    const { error } = await (supabase.from('tasks') as any).update({ status }).eq('id', taskId)
+    if (!error) {
+      const target = tasks.find((task) => task.id === taskId)
+      if (target && user) {
+        await upsertSearchDocument({
+          sourceType: 'task',
+          sourceId: taskId,
+          title: target.title,
+          content: target.description || target.title,
+          userId: user.id,
+          metadata: { status },
+        })
+      }
+    }
     fetchTasks()
   }
 
@@ -109,6 +145,7 @@ export default function TasksPage() {
     if (!confirm('このタスクを削除しますか？')) return
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase.from('tasks') as any).delete().eq('id', taskId)
+    await deleteSearchDocument('task', taskId)
     fetchTasks()
   }
 

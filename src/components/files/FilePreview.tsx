@@ -2,13 +2,18 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
+import { createClient } from '@/lib/supabase/client'
+import { upsertSearchDocument } from '@/lib/search/indexDocument'
+import JSZip from 'jszip'
+import PptxGenJS from 'pptxgenjs'
+import { Document as DocxDocument, Packer, Paragraph } from 'docx'
 
 // react-pdfを動的インポート（SSR無効）
-const Document = dynamic(
+const PdfDocument = dynamic(
   () => import('react-pdf').then((mod) => mod.Document),
   { ssr: false }
 )
-const Page = dynamic(
+const PdfPage = dynamic(
   () => import('react-pdf').then((mod) => mod.Page),
   { ssr: false }
 )
@@ -24,6 +29,9 @@ interface FilePreviewProps {
   url: string
   fileName: string
   mimeType: string
+  filePath: string
+  fileId: string
+  onSaved?: () => void
 }
 
 interface ExcelData {
@@ -31,7 +39,19 @@ interface ExcelData {
   data: { [sheet: string]: string[][] }
 }
 
-export default function FilePreview({ url, fileName, mimeType }: FilePreviewProps) {
+function htmlToPlainText(html: string) {
+  return html
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/h[1-6]>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .trim()
+}
+
+export default function FilePreview({ url, fileName, mimeType, filePath, fileId, onSaved }: FilePreviewProps) {
   const [numPages, setNumPages] = useState<number>(0)
   const [pageNumber, setPageNumber] = useState(1)
   const [wordContent, setWordContent] = useState<string>('')
@@ -41,9 +61,13 @@ export default function FilePreview({ url, fileName, mimeType }: FilePreviewProp
   const [editedExcelData, setEditedExcelData] = useState<{ [sheet: string]: string[][] }>({})
   const [isEditing, setIsEditing] = useState(false)
   const [editedContent, setEditedContent] = useState<string>('')
+  const [pptSlides, setPptSlides] = useState<string[]>([])
+  const [editedPptSlides, setEditedPptSlides] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [scale, setScale] = useState(1.0)
+  const [saving, setSaving] = useState(false)
+  const supabase = createClient()
 
   const isExcelFile = useCallback(() => {
     return mimeType.includes('spreadsheet') ||
@@ -71,6 +95,15 @@ export default function FilePreview({ url, fileName, mimeType }: FilePreviewProp
            (mimeType === 'application/msword')
   }, [mimeType, fileName])
 
+  const isPptFile = useCallback(() => {
+    return fileName.toLowerCase().endsWith('.pptx') ||
+      mimeType.includes('openxmlformats-officedocument.presentationml')
+  }, [mimeType, fileName])
+
+  const isOldPptFile = useCallback(() => {
+    return fileName.toLowerCase().endsWith('.ppt') && !fileName.toLowerCase().endsWith('.pptx')
+  }, [fileName])
+
   useEffect(() => {
     setLoading(true)
     setError(null)
@@ -79,6 +112,11 @@ export default function FilePreview({ url, fileName, mimeType }: FilePreviewProp
       loadExcelFile()
     } else if (isWordFile()) {
       loadWordDocument()
+    } else if (isPptFile()) {
+      loadPptFile()
+    } else if (isOldPptFile()) {
+      setError('古い形式のPowerPoint(.ppt)はサポートされていません。.pptx形式で保存し直してください。')
+      setLoading(false)
     } else if (isOldDocFile()) {
       setError('古い形式のWordファイル(.doc)はサポートされていません。.docx形式で保存し直してください。')
       setLoading(false)
@@ -87,7 +125,38 @@ export default function FilePreview({ url, fileName, mimeType }: FilePreviewProp
     } else {
       setLoading(false)
     }
-  }, [url, mimeType, isExcelFile, isWordFile, isOldDocFile])
+  }, [url, mimeType, isExcelFile, isWordFile, isOldDocFile, isPptFile, isOldPptFile])
+
+  const loadPptFile = async () => {
+    try {
+      const response = await fetch(url)
+      const arrayBuffer = await response.arrayBuffer()
+      const zip = await JSZip.loadAsync(arrayBuffer)
+      const slideFiles = Object.keys(zip.files)
+        .filter((name) => name.startsWith('ppt/slides/slide') && name.endsWith('.xml'))
+        .sort()
+
+      const parser = new DOMParser()
+      const slides: string[] = []
+
+      for (const file of slideFiles) {
+        const xml = await zip.file(file)?.async('string')
+        if (!xml) continue
+        const doc = parser.parseFromString(xml, 'application/xml')
+        const nodes = Array.from(doc.getElementsByTagName('a:t'))
+        const slideText = nodes.map((node) => node.textContent || '').join(' ').trim()
+        slides.push(slideText)
+      }
+
+      setPptSlides(slides)
+      setEditedPptSlides(slides)
+      setLoading(false)
+    } catch (err) {
+      console.error('PPTX load error:', err)
+      setError('PPTXファイルの読み込みに失敗しました')
+      setLoading(false)
+    }
+  }
 
   const loadExcelFile = async () => {
     try {
@@ -123,7 +192,7 @@ export default function FilePreview({ url, fileName, mimeType }: FilePreviewProp
       const arrayBuffer = await response.arrayBuffer()
       const result = await mammoth.convertToHtml({ arrayBuffer })
       setWordContent(result.value)
-      setEditedContent(result.value)
+      setEditedContent(htmlToPlainText(result.value))
       setLoading(false)
     } catch (err: any) {
       console.error('Word load error:', err)
@@ -194,39 +263,121 @@ export default function FilePreview({ url, fileName, mimeType }: FilePreviewProp
     setEditedExcelData(newData)
   }
 
-  const downloadExcel = async () => {
+
+  const uploadBlob = async (blob: Blob, contentType: string) => {
+    setSaving(true)
+    const { error: uploadError } = await supabase.storage
+      .from('files')
+      .upload(filePath, blob, { upsert: true, contentType })
+
+    if (uploadError) {
+      console.error('Save error:', uploadError)
+      setSaving(false)
+      return false
+    }
+
+    await supabase.from('files').update({
+      size: blob.size,
+      mime_type: contentType,
+      updated_at: new Date().toISOString(),
+    }).eq('id', fileId)
+
+    setSaving(false)
+    return true
+  }
+
+  const saveText = async () => {
+    const blob = new Blob([editedContent], { type: mimeType || 'text/plain' })
+    const ok = await uploadBlob(blob, mimeType || 'text/plain')
+    if (ok) {
+      await upsertSearchDocument({
+        sourceType: 'file',
+        sourceId: fileId,
+        title: fileName,
+        content: editedContent || fileName,
+        metadata: { fileName, mimeType },
+      })
+      onSaved?.()
+    }
+  }
+
+  const saveWord = async () => {
+    const plain = editedContent
+    const paragraphs = plain.split(/\n+/).map((line) => new Paragraph(line))
+    const doc = new DocxDocument({
+      sections: [{ children: paragraphs.length ? paragraphs : [new Paragraph('')] }],
+    })
+    const blob = await Packer.toBlob(doc)
+    const ok = await uploadBlob(blob, mimeType || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    if (ok) {
+      await upsertSearchDocument({
+        sourceType: 'file',
+        sourceId: fileId,
+        title: fileName,
+          content: plain || fileName,
+          metadata: { fileName, mimeType },
+        })
+      onSaved?.()
+    }
+  }
+
+  const saveExcel = async () => {
     try {
       const XLSX = await import('xlsx')
       const workbook = XLSX.utils.book_new()
-
       Object.keys(editedExcelData).forEach(sheetName => {
         const worksheet = XLSX.utils.aoa_to_sheet(editedExcelData[sheetName])
         XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
       })
-
       const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
       const blob = new Blob([excelBuffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       })
-      const downloadUrl = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = downloadUrl
-      link.download = fileName.replace(/\.[^.]+$/, '') + '_edited.xlsx'
-      link.click()
-      URL.revokeObjectURL(downloadUrl)
+      const ok = await uploadBlob(blob, mimeType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      if (ok) {
+        const excelText = Object.values(editedExcelData)
+          .map((rows) => rows.map((row) => row.join('\t')).join('\n'))
+          .join('\n')
+        await upsertSearchDocument({
+          sourceType: 'file',
+          sourceId: fileId,
+          title: fileName,
+          content: excelText || fileName,
+          metadata: { fileName, mimeType },
+        })
+        onSaved?.()
+      }
     } catch (err) {
-      console.error('Excel download error:', err)
+      console.error('Excel save error:', err)
     }
   }
 
-  const downloadEdited = () => {
-    const blob = new Blob([editedContent], { type: 'text/plain' })
-    const downloadUrl = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = downloadUrl
-    link.download = fileName.replace(/\.[^.]+$/, '') + '_edited.txt'
-    link.click()
-    URL.revokeObjectURL(downloadUrl)
+  const savePptx = async () => {
+    try {
+      const pptx = new PptxGenJS()
+      editedPptSlides.forEach((text, index) => {
+        const slide = pptx.addSlide()
+        const content = text || `Slide ${index + 1}`
+        slide.addText(content, { x: 0.5, y: 0.5, w: 9, h: 5, fontSize: 20 })
+      })
+      const blob = await pptx.write('blob')
+      const ok = await uploadBlob(
+        blob as Blob,
+        mimeType || 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+      )
+      if (ok) {
+        await upsertSearchDocument({
+          sourceType: 'file',
+          sourceId: fileId,
+          title: fileName,
+          content: editedPptSlides.join('\n') || fileName,
+          metadata: { fileName, mimeType },
+        })
+        onSaved?.()
+      }
+    } catch (err) {
+      console.error('PPTX save error:', err)
+    }
   }
 
   if (loading) {
@@ -304,7 +455,7 @@ export default function FilePreview({ url, fileName, mimeType }: FilePreviewProp
         </div>
 
         <div className="flex-1 overflow-auto p-4 bg-gray-200 flex justify-center">
-          <Document
+          <PdfDocument
             file={url}
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={onDocumentLoadError}
@@ -314,13 +465,13 @@ export default function FilePreview({ url, fileName, mimeType }: FilePreviewProp
               </div>
             }
           >
-            <Page
+            <PdfPage
               pageNumber={pageNumber}
               scale={scale}
               renderTextLayer={false}
               renderAnnotationLayer={false}
             />
-          </Document>
+          </PdfDocument>
         </div>
       </div>
     )
@@ -373,10 +524,11 @@ export default function FilePreview({ url, fileName, mimeType }: FilePreviewProp
                   +列
                 </button>
                 <button
-                  onClick={downloadExcel}
+                  onClick={saveExcel}
                   className="px-3 py-1 text-sm border border-black bg-green-100"
+                  disabled={saving}
                 >
-                  ↓ 保存
+                  {saving ? '保存中...' : '保存'}
                 </button>
               </>
             )}
@@ -451,10 +603,11 @@ export default function FilePreview({ url, fileName, mimeType }: FilePreviewProp
             </button>
             {isEditing && (
               <button
-                onClick={downloadEdited}
+                onClick={saveWord}
                 className="px-3 py-1 text-sm border border-black bg-green-100"
+                disabled={saving}
               >
-                ↓ 保存
+                {saving ? '保存中...' : '保存'}
               </button>
             )}
           </div>
@@ -496,10 +649,11 @@ export default function FilePreview({ url, fileName, mimeType }: FilePreviewProp
             </button>
             {isEditing && (
               <button
-                onClick={downloadEdited}
+                onClick={saveText}
                 className="px-3 py-1 text-sm border border-black bg-green-100"
+                disabled={saving}
               >
-                ↓ 保存
+                {saving ? '保存中...' : '保存'}
               </button>
             )}
           </div>
@@ -515,6 +669,69 @@ export default function FilePreview({ url, fileName, mimeType }: FilePreviewProp
             }`}
             style={{ minHeight: '400px' }}
           />
+        </div>
+      </div>
+    )
+  }
+
+  // PPTXプレビュー/編集
+  if (isPptFile()) {
+    return (
+      <div className="h-full flex flex-col">
+        <div className="p-2 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+          <span className="text-sm font-pixel">PowerPoint</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleEdit}
+              className={`px-3 py-1 text-sm border border-black ${
+                isEditing ? 'bg-black text-white' : ''
+              }`}
+            >
+              {isEditing ? '✓ 編集中' : '✎ 編集'}
+            </button>
+            {isEditing && (
+              <button
+                onClick={savePptx}
+                className="px-3 py-1 text-sm border border-black bg-green-100"
+                disabled={saving}
+              >
+                {saving ? '保存中...' : '保存'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-auto p-4 bg-white space-y-4">
+          {isEditing ? (
+            <>
+              {editedPptSlides.map((slide, index) => (
+                <div key={index} className="border-2 border-black p-3">
+                  <div className="text-xs text-gray-500 mb-2">Slide {index + 1}</div>
+                  <textarea
+                    value={slide}
+                    onChange={(e) => {
+                      const next = [...editedPptSlides]
+                      next[index] = e.target.value
+                      setEditedPptSlides(next)
+                    }}
+                    className="w-full h-24 border border-gray-300 p-2"
+                  />
+                </div>
+              ))}
+              <button
+                onClick={() => setEditedPptSlides([...editedPptSlides, ''])}
+                className="pixel-btn"
+              >
+                + スライド追加
+              </button>
+            </>
+          ) : (
+            <iframe
+              title="PowerPoint preview"
+              src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`}
+              className="w-full h-[500px] border-2 border-black"
+            />
+          )}
         </div>
       </div>
     )

@@ -34,6 +34,9 @@ export default async function ChannelsPage() {
                 <p className="text-sm text-gray-600 mt-1">
                   {channel.description || 'チャンネルの説明がありません'}
                 </p>
+                {channel.is_archived && (
+                  <p className="text-xs text-red-500 mt-2 font-pixel">アーカイブ済み</p>
+                )}
               </div>
             </div>
           </Link>
