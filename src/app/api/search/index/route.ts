@@ -19,10 +19,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Supabase設定が不足しています' }, { status: 500 })
   }
 
+  const cookieStore = await cookies()
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     cookies: {
       getAll() {
-        return cookies().getAll()
+        return cookieStore.getAll()
       },
       setAll() {},
     },
