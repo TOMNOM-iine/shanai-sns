@@ -17,13 +17,13 @@
     "docx": "^8.5.0",
     "dompurify": "^3.1.0",
     "jszip": "^3.10.1",
-    "lucide-react": "^0.309.0",
+    "lucide-react": "^0.577.0",
     "mammoth": "^1.11.0",
-    "next": "^14.2.35",
+    "next": "^15.5.28",
     "openai": "^4.24.0",
     "pptxgenjs": "^3.11.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "react": "^19.2.9",
+    "react-dom": "^19.2.9",
     "react-pdf": "^10.3.0",
     "uuid": "^9.0.0",
     "xlsx": "^0.18.5"
@@ -31,14 +31,17 @@
   "devDependencies": {
     "@types/node": "^20.10.0",
     "@types/dompurify": "^3.0.5",
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "@types/uuid": "^9.0.0",
     "autoprefixer": "^10.4.16",
     "eslint": "^8.56.0",
-    "eslint-config-next": "^14.2.18",
+    "eslint-config-next": "^15.5.28",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.3.0"
+  },
+  "overrides": {
+    "sharp": "^0.35.5"
   }
 }

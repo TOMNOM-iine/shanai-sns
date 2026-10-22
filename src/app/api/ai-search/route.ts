@@ -46,10 +46,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '埋め込み生成に失敗しました' }, { status: 500 })
   }
 
+  const cookieStore = await cookies()
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     cookies: {
       getAll() {
-        return cookies().getAll()
+        return cookieStore.getAll()
       },
       setAll() {},
     },
